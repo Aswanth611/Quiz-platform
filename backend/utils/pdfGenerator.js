@@ -28,140 +28,111 @@ exports.generateCertificatePDF = (certificate, user, quiz) => {
     const width = doc.page.width;
     const height = doc.page.height;
 
-    // 1. Draw Background & Elegant Borders
-    // Outer border (Dark Indigo)
-    doc.rect(20, 20, width - 40, height - 40)
-       .lineWidth(6)
-       .strokeColor('#1e1b4b') // Indigo-950
-       .stroke();
+    // 1. Draw Dark Theme Background
+    doc.rect(0, 0, width, height)
+       .fillColor('#030712') // Dark Slate-950
+       .fill();
 
-    // Inner border (Gold/Bronze Accent)
-    doc.rect(28, 28, width - 56, height - 56)
+    // 2. Draw Rounded Outer Border
+    doc.roundedRect(25, 25, width - 50, height - 50, 16)
        .lineWidth(2)
-       .strokeColor('#d97706') // Amber-600 (Gold)
+       .strokeColor('#111827') // Dark Gray border
        .stroke();
 
-    // Corner decorative brackets (Gold accents)
+    // 3. Draw Corner Gold L-Brackets
     const drawCorner = (x, y, dx, dy) => {
       doc.moveTo(x, y + dy)
          .lineTo(x, y)
          .lineTo(x + dx, y)
-         .lineWidth(4)
-         .strokeColor('#d97706')
+         .lineWidth(3.5)
+         .strokeColor('#f59e0b') // Bright Amber/Gold
          .stroke();
     };
-    drawCorner(35, 35, 30, 30);
-    drawCorner(width - 35, 35, -30, 30);
-    drawCorner(35, height - 35, 30, -30);
-    drawCorner(width - 35, height - 35, -30, -30);
 
-    // 2. Draw Decorative Top Logo
+    // Draw square-angle corners inset slightly from border
+    drawCorner(45, 45, 30, 30);       // Top-Left
+    drawCorner(width - 45, 45, -30, 30);  // Top-Right
+    drawCorner(45, height - 45, 30, -30);  // Bottom-Left
+    drawCorner(width - 45, height - 45, -30, -30); // Bottom-Right
+
+    // 4. Draw Header Branding (Text & Vector Badge)
+    // Spaced app name
+    doc.font('Helvetica-Bold')
+       .fontSize(11)
+       .fillColor('#94a3b8') // Slate-400
+       .text('Q U I Z C E R T', 0, 75, { align: 'center', width: width });
+
+    // Vector Ribbon Badge
     doc.save();
-    // Draw logo symbol (Golden Ribbon/Shield)
-    doc.translate(width / 2, 85);
-    doc.path('M 0 -20 L 15 -10 L 15 15 L 0 25 L -15 15 L -15 -10 Z')
-       .fillColor('#d97706')
-       .fill();
-    doc.circle(0, 0, 7)
-       .fillColor('#ffffff')
-       .fill();
+    doc.translate(width / 2, 115);
+    // Ribbon tails
+    doc.moveTo(-5, 5).lineTo(-7, 14).lineTo(-2, 12).lineTo(0, 14).lineTo(0, 5).fillColor('#d97706').fill();
+    doc.moveTo(0, 5).lineTo(0, 14).lineTo(2, 12).lineTo(7, 14).lineTo(5, 5).fillColor('#d97706').fill();
+    // Circular gold base
+    doc.circle(0, 0, 11).fillColor('#f59e0b').fill();
+    // Inner white detail
+    doc.circle(0, 0, 7.5).fillColor('#ffffff').fill();
+    doc.circle(0, 0, 5.5).fillColor('#f59e0b').fill();
     doc.restore();
 
-    // App Name Header
-    doc.font('Helvetica-Bold')
-       .fontSize(14)
-       .fillColor('#1e1b4b')
-       .text('Q U I Z C E R T', 0, 115, { align: 'center', width: width });
-
-    // 3. Certificate Title
+    // 5. Draw Certificate Title
     doc.font('Times-BoldItalic')
-       .fontSize(36)
-       .fillColor('#1e1b4b')
+       .fontSize(34)
+       .fillColor('#ffffff') // White
        .text('Certificate of Achievement', 0, 155, { align: 'center', width: width });
 
-    // Subtitle
-    doc.font('Helvetica')
-       .fontSize(14)
-       .fillColor('#4b5563') // Gray-600
-       .text('THIS CERTIFICATE IS PROUDLY PRESENTED TO', 0, 215, { align: 'center', width: width });
+    // Presented To subtitle
+    doc.font('Helvetica-Bold')
+       .fontSize(10)
+       .fillColor('#64748b') // Slate-500
+       .text('THIS IS PROUDLY PRESENTED TO', 0, 205, { align: 'center', width: width });
 
-    // 4. Recipient Name
-    doc.font('Times-Bold')
+    // 6. Recipient Name
+    doc.font('Helvetica-Bold')
        .fontSize(28)
-       .fillColor('#d97706')
-       .text(user.name.toUpperCase(), 0, 245, { align: 'center', width: width });
+       .fillColor('#f59e0b') // Gold
+       .text(user.name.toUpperCase(), 0, 230, { align: 'center', width: width });
 
-    // 5. Achievement Details
+    // 7. Achievement Details (Multi-line centered chain-styling)
     doc.font('Helvetica')
        .fontSize(12)
-       .fillColor('#4b5563')
-       .text('for successfully completing the online examination and demonstrating proficiency in', 0, 295, { align: 'center', width: width });
+       .fillColor('#94a3b8')
+       .text('for successfully completing the online examination and demonstrating proficiency in', 60, 285, { align: 'center', width: width - 120 });
 
+    const scorePercentage = certificate.scorePercentage;
     doc.font('Helvetica-Bold')
-       .fontSize(16)
-       .fillColor('#1e1b4b')
-       .text(quiz.title, 0, 320, { align: 'center', width: width });
+       .fontSize(15)
+       .fillColor('#ffffff')
+       .text(quiz.title, 60, 310, { align: 'center', width: width - 120, continued: true })
+       .fillColor('#94a3b8')
+       .font('Helvetica')
+       .text(' with a score of ', { continued: true })
+       .fillColor('#f59e0b')
+       .font('Helvetica-Bold')
+       .text(`${scorePercentage}%.`);
 
-    // Score & Verification Box
-    doc.rect(width / 2 - 175, 355, 350, 50)
-       .fillColor('#f8fafc') // Slate-50
-       .strokeColor('#e2e8f0') // Slate-200
+    // 8. Divider Line
+    doc.moveTo(80, 370)
+       .lineTo(width - 80, 370)
        .lineWidth(1)
-       .fillAndStroke();
-
-    doc.font('Helvetica-Bold')
-       .fontSize(13)
-       .fillColor('#1e1b4b')
-       .text(`Score Obtained: ${certificate.scorePercentage}%`, width / 2 - 170, 365, { align: 'center', width: 340 });
-
-    doc.font('Helvetica-Oblique')
-       .fontSize(9)
-       .fillColor('#64748b')
-       .text(`Date of Issue: ${new Date(certificate.generatedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, width / 2 - 170, 385, { align: 'center', width: 340 });
-
-    // 6. Signatures Section
-    // Left: Authorized Instructor
-    doc.moveTo(150, 480)
-       .lineTo(330, 480)
-       .lineWidth(1)
-       .strokeColor('#94a3b8')
+       .strokeColor('#111827')
        .stroke();
-    doc.font('Times-Italic')
-       .fontSize(14)
-       .fillColor('#1e1b4b')
-       .text('Antigravity AI', 150, 458, { align: 'center', width: 180 });
-    doc.font('Helvetica')
-       .fontSize(9)
-       .fillColor('#64748b')
-       .text('Lead Evaluator, QuizCert', 150, 488, { align: 'center', width: 180 });
 
-    // Right: Director / CEO
-    doc.moveTo(width - 330, 480)
-       .lineTo(width - 150, 480)
-       .lineWidth(1)
-       .strokeColor('#94a3b8')
-       .stroke();
-    doc.font('Times-Italic')
-       .fontSize(14)
-       .fillColor('#1e1b4b')
-       .text('QuizCert Engine', width - 330, 458, { align: 'center', width: 180 });
-    doc.font('Helvetica')
-       .fontSize(9)
-       .fillColor('#64748b')
-       .text('Director of Certification', width - 330, 488, { align: 'center', width: 180 });
-
-    // 7. Footer: Certificate ID & Verification URL
-    const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-certificate?id=${certificate.certificateId}`;
+    // 9. Footer: Metadata details & Verification badge
+    // Left: ID & Date
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#4b5563')
+       .text('CERTIFICATE ID: ', 80, 395, { continued: true })
+       .font('Helvetica').text(certificate.certificateId);
     
-    doc.font('Helvetica-Bold')
-       .fontSize(8)
-       .fillColor('#94a3b8')
-       .text(`Certificate ID: ${certificate.certificateId}`, 40, height - 35, { align: 'left' });
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#4b5563')
+       .text('DATE: ', 80, 412, { continued: true })
+       .font('Helvetica').text(new Date(certificate.generatedDate).toLocaleDateString('en-GB'));
 
-    doc.font('Helvetica')
-       .fontSize(8)
+    // Right: Verification Stamp
+    doc.font('Times-Italic')
+       .fontSize(11)
        .fillColor('#94a3b8')
-       .text(`Verify online at: ${verifyUrl}`, 0, height - 35, { align: 'right', x: width - 340, width: 300 });
+       .text('QuizCert Engine Verified', width - 260, 402, { align: 'right', width: 180 });
 
     doc.end();
   });
