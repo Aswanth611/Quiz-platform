@@ -13,7 +13,11 @@ app.use(express.json());
 
 // Enable CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: [
+    "http://localhost:5173",
+    "https://quiz-platform-ivory.vercel.app",
+    "https://quiz-platform-mail63is4-ai-lms-project.vercel.app"
+  ],
   credentials: true
 }));
 
