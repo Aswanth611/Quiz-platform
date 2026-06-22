@@ -12,12 +12,20 @@ const app = express();
 app.use(express.json());
 
 // Enable CORS
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://quiz-platform-ivory.vercel.app",
+  "https://quiz-platform-mail63is4-ai-lms-project.vercel.app"
+];
+
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://quiz-platform-ivory.vercel.app",
-    "https://quiz-platform-mail63is4-ai-lms-project.vercel.app"
-  ],
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true
 }));
 
