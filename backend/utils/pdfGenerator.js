@@ -100,16 +100,33 @@ exports.generateCertificatePDF = (certificate, user, quiz) => {
        .text('for successfully completing the online examination and demonstrating proficiency in', 60, 285, { align: 'center', width: width - 120 });
 
     const scorePercentage = certificate.scorePercentage;
+    const text1 = quiz.title;
+    const text2 = ' with a score of ';
+    const text3 = `${scorePercentage}%.`;
+
+    // Mathematically calculate text widths to center the chain correctly without overlaps
+    doc.font('Helvetica-Bold').fontSize(14);
+    const w1 = doc.widthOfString(text1);
+    
+    doc.font('Helvetica').fontSize(14);
+    const w2 = doc.widthOfString(text2);
+    
+    doc.font('Helvetica-Bold').fontSize(14);
+    const w3 = doc.widthOfString(text3);
+
+    const totalW = w1 + w2 + w3;
+    const startX = (width - totalW) / 2;
+
     doc.font('Helvetica-Bold')
-       .fontSize(15)
+       .fontSize(14)
        .fillColor('#ffffff')
-       .text(quiz.title, 60, 310, { align: 'center', width: width - 120, continued: true })
-       .fillColor('#94a3b8')
+       .text(text1, startX, 312, { continued: true })
        .font('Helvetica')
-       .text(' with a score of ', { continued: true })
-       .fillColor('#f59e0b')
+       .fillColor('#94a3b8')
+       .text(text2, { continued: true })
        .font('Helvetica-Bold')
-       .text(`${scorePercentage}%.`);
+       .fillColor('#f59e0b')
+       .text(text3);
 
     // 8. Divider Line
     doc.moveTo(80, 370)
