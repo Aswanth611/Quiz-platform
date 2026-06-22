@@ -146,7 +146,8 @@ export default function Paywall() {
     setPaying(true);
     try {
       // Trigger simulation capture call on /payment-success direct path
-      navigate(`/payment-success?token=${mockOrder.id}&attemptId=${attemptId}`);
+      const token = mockOrder?.id || `order_paypal_mock_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      navigate(`/payment-success?token=${token}&attemptId=${attemptId}`);
     } catch (err) {
       setError('Simulated checkout navigation failed.');
       setPaying(false);

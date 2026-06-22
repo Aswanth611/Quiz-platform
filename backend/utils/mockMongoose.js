@@ -36,7 +36,7 @@ loadDB();
 
 class MockQuery {
   constructor(result, modelName) {
-    this.result = JSON.parse(JSON.stringify(result)); // Deep clone
+    this.result = Array.isArray(result) ? [...result] : result;
     this.modelName = modelName;
   }
 
@@ -242,7 +242,8 @@ const createModel = (modelName, schema) => {
         });
       }
 
-      return new MockQuery(results, modelName);
+      const instances = results.map(item => new Model(item));
+      return new MockQuery(instances, modelName);
     }
 
     static findOne(query = {}) {
@@ -255,7 +256,8 @@ const createModel = (modelName, schema) => {
         });
       });
 
-      return new MockQuery(matched || null, modelName);
+      const instance = matched ? new Model(matched) : null;
+      return new MockQuery(instance, modelName);
     }
 
     static findById(id) {
