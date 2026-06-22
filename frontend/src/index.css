@@ -85,3 +85,55 @@
   left: 0;
   z-index: 9999;
 }
+
+/* Floating neon glow orbs */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.12;
+  z-index: 0;
+  pointer-events: none;
+  animation: floating 25s infinite alternate ease-in-out;
+}
+
+.orb-1 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, #6366f1 0%, transparent 80%);
+  top: 10%;
+  left: 5%;
+  animation-duration: 20s;
+}
+
+.orb-2 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, #a855f7 0%, transparent 80%);
+  bottom: 10%;
+  right: 5%;
+  animation-duration: 28s;
+  animation-delay: -5s;
+}
+
+.orb-3 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, #ec4899 0%, transparent 80%);
+  top: 50%;
+  left: 40%;
+  animation-duration: 25s;
+  animation-delay: -10s;
+}
+
+@keyframes floating {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(80px, -60px) scale(1.1);
+  }
+  100% {
+    transform: translate(-40px, 80px) scale(0.9);
+  }
+}

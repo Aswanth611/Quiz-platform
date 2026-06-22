@@ -83,9 +83,14 @@ export default function App() {
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
       <Router>
-        <div className="flex flex-col min-h-screen gradient-bg">
+        <div className="flex flex-col min-h-screen gradient-bg relative overflow-hidden">
+          {/* Ambient Background Orbs */}
+          <div className="orb orb-1"></div>
+          <div className="orb orb-2"></div>
+          <div className="orb orb-3"></div>
+
           <Navbar />
-          <main className="flex-grow container mx-auto px-4 py-8">
+          <main className="flex-grow container mx-auto px-4 py-8 relative z-10">
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
