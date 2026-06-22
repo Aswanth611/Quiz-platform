@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import API from '../services/api';
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   const orderID = searchParams.get('token') || searchParams.get('orderID');
@@ -28,10 +29,12 @@ export default function PaymentSuccess() {
         });
 
         if (res.data.success) {
-          // Delay briefly to allow database persistence and redirect
+          setSuccess(true);
+          setLoading(false);
+          // Wait 3.5 seconds to show the complete Google Pay style animation
           setTimeout(() => {
             navigate(`/certificate/${res.data.attemptId || attemptId}?confetti=true`);
-          }, 1500);
+          }, 3500);
         } else {
           setError(res.data.message || 'Payment capture failed.');
           setLoading(false);
@@ -58,14 +61,14 @@ export default function PaymentSuccess() {
             <div className="flex justify-center">
               <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
             </div>
-            <h2 className="text-2xl font-bold text-white">Verifying Transaction</h2>
+            <h2 className="text-2xl font-bold text-white animate-pulse">Verifying Transaction</h2>
             <p className="text-slate-400 text-sm leading-relaxed">
               Payment was approved! Capturing PayPal order and dynamically generating your certificate. Please do not close or refresh this page...
             </p>
           </>
         ) : error ? (
           <>
-            <div className="flex justify-center text-rose-500">
+            <div className="flex justify-center text-rose-500 animate-bounce">
               <AlertCircle className="w-12 h-12" />
             </div>
             <h2 className="text-2xl font-bold text-white">Capture Failed</h2>
@@ -78,29 +81,39 @@ export default function PaymentSuccess() {
             <div className="pt-4 space-y-2">
               <button
                 onClick={() => navigate(attemptId ? `/paywall/${attemptId}` : '/dashboard')}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-505 text-white font-bold rounded-xl cursor-pointer"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl cursor-pointer transition-all"
               >
                 Return to Payment Screen
               </button>
               <button
                 onClick={() => navigate('/dashboard')}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl cursor-pointer"
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl cursor-pointer transition-all"
               >
                 Back to Dashboard
               </button>
             </div>
           </>
-        ) : (
+        ) : success ? (
           <>
-            <div className="flex justify-center text-emerald-500">
-              <CheckCircle2 className="w-12 h-12" />
+            <div className="gpay-tick-wrapper">
+              {/* Shimmer/Ripple rings */}
+              <div className="gpay-ring ring-1"></div>
+              <div className="gpay-ring ring-2"></div>
+              
+              {/* Main Green Circle & Tick */}
+              <div className="gpay-circle">
+                <svg className="gpay-svg" viewBox="0 0 52 52">
+                  <circle className="gpay-svg-circle" cx="26" cy="26" r="25" fill="none" />
+                  <path className="gpay-svg-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+                </svg>
+              </div>
             </div>
-            <h2 className="text-2xl font-bold text-white">Payment Confirmed!</h2>
+            <h2 className="text-2xl font-bold text-white">Payment Successful!</h2>
             <p className="text-slate-400 text-sm">
-              Redirecting you to your certificate board...
+              Your results are unlocked. Redirecting you to your certificate...
             </p>
           </>
-        )}
+        ) : null}
       </div>
     </div>
   );
