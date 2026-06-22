@@ -11,11 +11,11 @@ const PaymentSchema = new mongoose.Schema({
     ref: 'QuizAttempt',
     required: true
   },
-  razorpayOrderId: {
+  paypalOrderId: {
     type: String,
     required: true
   },
-  razorpayPaymentId: {
+  transactionId: {
     type: String
   },
   amount: {
@@ -24,7 +24,7 @@ const PaymentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['created', 'captured', 'failed'],
+    enum: ['created', 'success', 'failed'],
     default: 'created'
   },
   createdAt: {

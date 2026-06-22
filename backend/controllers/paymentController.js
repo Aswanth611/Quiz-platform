@@ -1,4 +1,3 @@
-const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const QuizAttempt = require('../models/QuizAttempt');
 const Payment = require('../models/Payment');
@@ -6,23 +5,9 @@ const Certificate = require('../models/Certificate');
 const User = require('../models/User');
 const Quiz = require('../models/Quiz');
 const { sendCertificateEmail } = require('../utils/emailService');
+const { client, paypal } = require('../utils/paypalClient');
 
-// Initialize Razorpay
-let razorpay = null;
-const initRazorpay = () => {
-  if (razorpay) return razorpay;
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    console.warn('Razorpay keys not configured. Running in fallback/mock mode.');
-    return null;
-  }
-  razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET
-  });
-  return razorpay;
-};
-
-// @desc    Create a payment order
+// @desc    Create a PayPal order
 // @route   POST /api/payment/create-order
 // @access  Private
 exports.createOrder = async (req, res) => {
@@ -38,112 +23,151 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Attempt has already been unlocked' });
     }
 
-    const amount = 4900; // ₹49 in paise
-    const currency = 'INR';
+    const quiz = await Quiz.findById(attempt.quizId);
+    if (!quiz) {
+      return res.status(404).json({ success: false, message: 'Quiz metadata not found' });
+    }
 
-    const rzp = initRazorpay();
-    const bypassMode = process.env.BYPASS_PAYMENT === 'true' || !rzp;
+    const bypassMode = process.env.BYPASS_PAYMENT === 'true' || 
+                        process.env.PAYPAL_CLIENT_ID === 'already_configured' || 
+                        !process.env.PAYPAL_CLIENT_ID;
+
+    const amountValue = '0.99'; // Charge $0.99 USD (approx ₹80-85, matching small charge)
+    const currency = 'USD';
 
     if (bypassMode) {
-      // Mock order for demo/bypass mode
-      const mockOrderId = `order_mock_${crypto.randomBytes(8).toString('hex')}`;
+      // Simulation/Bypass Mode
+      const mockOrderId = `order_paypal_mock_${crypto.randomBytes(8).toString('hex')}`;
       
-      // Store in payments collection as created
+      // Save Payment as created
       await Payment.create({
         userId: req.user.id,
         quizAttemptId: attemptId,
-        razorpayOrderId: mockOrderId,
-        amount: amount,
+        paypalOrderId: mockOrderId,
+        amount: 99, // 99 cents
         status: 'created'
       });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const mockApprovalUrl = `${frontendUrl}/payment-success?token=${mockOrderId}&attemptId=${attemptId}`;
 
       return res.json({
         success: true,
         bypass: true,
-        order: {
-          id: mockOrderId,
-          amount: amount,
-          currency: currency
-        }
+        orderID: mockOrderId,
+        approvalUrl: mockApprovalUrl
       });
     }
 
-    // Live Razorpay order creation
-    const options = {
-      amount,
-      currency,
-      receipt: `receipt_attempt_${attemptId}`
-    };
+    // Live PayPal SDK Order Creation
+    const request = new paypal.orders.OrdersCreateRequest();
+    request.prefer("return=representation");
+    request.requestBody({
+      intent: 'CAPTURE',
+      purchase_units: [{
+        amount: {
+          currency_code: currency,
+          value: amountValue
+        },
+        description: `QuizCert Credentials: ${quiz.title}`
+      }],
+      application_context: {
+        return_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment-success?attemptId=${attemptId}`,
+        cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/paywall/${attemptId}`,
+        brand_name: 'QuizCert Platform',
+        user_action: 'PAY_NOW'
+      }
+    });
 
-    const order = await rzp.orders.create(options);
-
+    const order = await client().execute(request);
+    
+    // Create database payment transaction
     await Payment.create({
       userId: req.user.id,
       quizAttemptId: attemptId,
-      razorpayOrderId: order.id,
-      amount: amount,
+      paypalOrderId: order.result.id,
+      amount: 99,
       status: 'created'
     });
+
+    // Find approval url link
+    const approvalLink = order.result.links.find(link => link.rel === 'approve');
 
     res.json({
       success: true,
       bypass: false,
-      order: {
-        id: order.id,
-        amount: order.amount,
-        currency: order.currency
-      }
+      orderID: order.result.id,
+      approvalUrl: approvalLink ? approvalLink.href : ''
     });
   } catch (err) {
+    console.error('PayPal Order Creation Error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 };
 
-// @desc    Verify payment signature and unlock certificate
-// @route   POST /api/payment/verify
+// @desc    Capture PayPal Order and generate certificate
+// @route   POST /api/payment/capture-order
 // @access  Private
-exports.verifyPayment = async (req, res) => {
+exports.captureOrder = async (req, res) => {
   try {
-    const {
-      attemptId,
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature
-    } = req.body;
+    const { orderID, attemptId } = req.body;
 
-    const rzp = initRazorpay();
-    const bypassMode = process.env.BYPASS_PAYMENT === 'true' || !rzp;
+    if (!orderID) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid PayPal orderID' });
+    }
 
     // Retrieve payment transaction
-    const payment = await Payment.findOne({ razorpayOrderId });
+    const payment = await Payment.findOne({ paypalOrderId: orderID });
     if (!payment) {
       return res.status(404).json({ success: false, message: 'Payment record not found' });
     }
 
-    if (!bypassMode) {
-      // Validate payment signature
-      const hmac = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET);
-      hmac.update(`${razorpayOrderId}|${razorpayPaymentId}`);
-      const generatedSignature = hmac.digest('hex');
+    const targetAttemptId = attemptId || payment.quizAttemptId;
 
-      if (generatedSignature !== razorpaySignature) {
-        payment.status = 'failed';
-        await payment.save();
-        return res.status(400).json({ success: false, message: 'Payment verification failed' });
-      }
-    }
-
-    // Payment is valid! Update payment record
-    payment.status = 'captured';
-    payment.razorpayPaymentId = razorpayPaymentId || `pay_mock_${crypto.randomBytes(8).toString('hex')}`;
-    await payment.save();
-
-    // Update QuizAttempt status to 'paid'
-    const attempt = await QuizAttempt.findById(attemptId);
+    const attempt = await QuizAttempt.findById(targetAttemptId);
     if (!attempt) {
       return res.status(404).json({ success: false, message: 'Quiz attempt not found' });
     }
-    
+
+    const bypassMode = process.env.BYPASS_PAYMENT === 'true' || 
+                        orderID.startsWith('order_paypal_mock_') || 
+                        !process.env.PAYPAL_CLIENT_ID || 
+                        process.env.PAYPAL_CLIENT_ID === 'already_configured';
+
+    let captureId = '';
+
+    if (bypassMode) {
+      // Simulation/Bypass Mode Success
+      captureId = `pay_paypal_mock_${crypto.randomBytes(8).toString('hex')}`;
+      payment.status = 'success';
+      payment.transactionId = captureId;
+      await payment.save();
+    } else {
+      // Live capture using SDK
+      try {
+        const request = new paypal.orders.OrdersCaptureRequest(orderID);
+        request.requestBody({});
+        const capture = await client().execute(request);
+
+        if (capture.result.status !== 'COMPLETED') {
+          payment.status = 'failed';
+          await payment.save();
+          return res.status(400).json({ success: false, message: 'PayPal transaction not completed' });
+        }
+
+        captureId = capture.result.purchase_units[0].payments.captures[0].id;
+        payment.status = 'success';
+        payment.transactionId = captureId;
+        await payment.save();
+      } catch (sdkErr) {
+        console.error('PayPal Capture SDK Error:', sdkErr.message);
+        payment.status = 'failed';
+        await payment.save();
+        return res.status(400).json({ success: false, error: 'Failed to capture PayPal order' });
+      }
+    }
+
+    // Mark QuizAttempt as paid
     attempt.paymentStatus = 'paid';
     await attempt.save();
 
@@ -154,7 +178,7 @@ exports.verifyPayment = async (req, res) => {
     // Calculate score percentage
     const scorePercentage = Math.round((attempt.score / attempt.totalQuestions) * 100);
 
-    // Generate unique Certificate ID (e.g. CERT-2026-XXXXXX)
+    // Generate unique Certificate ID
     const year = new Date().getFullYear();
     const certRandom = crypto.randomBytes(4).toString('hex').toUpperCase();
     const certificateId = `CERT-${year}-${certRandom}`;
@@ -169,11 +193,10 @@ exports.verifyPayment = async (req, res) => {
       pdfUrl: `/api/certificate/${certificateId}/download`
     });
 
-    // Send confirmation email containing a download link
+    // Send confirmation email
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const downloadUrl = `${frontendUrl}/certificate/${attemptId}`;
+    const downloadUrl = `${frontendUrl}/certificate/${attempt._id}`;
     
-    // We run email sending asynchronously, so it doesn't block the HTTP response
     sendCertificateEmail(
       user.email,
       user.name,
@@ -185,12 +208,24 @@ exports.verifyPayment = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Payment verified and certificate generated.',
-      attemptId,
+      message: 'PayPal payment captured and certificate generated successfully.',
+      attemptId: attempt._id,
       certificateId,
       certificate
     });
   } catch (err) {
+    console.error('PayPal Order Capture Error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
+};
+
+// @desc    Get PayPal Client config details
+// @route   GET /api/payment/config
+// @access  Private
+exports.getPaymentConfig = (req, res) => {
+  res.json({
+    success: true,
+    clientId: process.env.PAYPAL_CLIENT_ID === 'already_configured' ? '' : (process.env.PAYPAL_CLIENT_ID || ''),
+    bypass: process.env.BYPASS_PAYMENT === 'true' || !process.env.PAYPAL_CLIENT_ID || process.env.PAYPAL_CLIENT_ID === 'already_configured'
+  });
 };

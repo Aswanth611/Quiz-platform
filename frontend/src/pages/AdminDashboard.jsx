@@ -536,8 +536,8 @@ export default function AdminDashboard() {
                         <p className="font-bold text-slate-200">{p.userId?.name || 'Anonymous'}</p>
                         <p className="text-[10px] text-slate-500 font-mono">{p.userId?.email || 'N/A'}</p>
                       </td>
-                      <td className="p-4 font-mono text-xs text-slate-400">{p.razorpayOrderId}</td>
-                      <td className="p-4 font-mono text-xs text-slate-400">{p.razorpayPaymentId || '[pending]'}</td>
+                      <td className="p-4 font-mono text-xs text-slate-400">{p.paypalOrderId}</td>
+                      <td className="p-4 font-mono text-xs text-slate-400">{p.transactionId || '[pending]'}</td>
                       <td className="p-4 font-bold text-slate-200">₹{(p.amount / 100).toFixed(2)}</td>
                       <td className="p-4">
                         <span className={`px-2.5 py-0.5 text-xs font-bold rounded flex items-center gap-1 w-fit ${

@@ -12,6 +12,7 @@ import Paywall from './pages/Paywall';
 import CertificateScreen from './pages/CertificateScreen';
 import VerifyCertificate from './pages/VerifyCertificate';
 import AdminDashboard from './pages/AdminDashboard';
+import PaymentSuccess from './pages/PaymentSuccess';
 
 // Components
 import Navbar from './components/Navbar';
@@ -120,6 +121,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <CertificateScreen />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/payment-success" 
+                element={
+                  <ProtectedRoute>
+                    <PaymentSuccess />
                   </ProtectedRoute>
                 } 
               />

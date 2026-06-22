@@ -12,121 +12,131 @@ export default function Paywall() {
   const [paying, setPaying] = useState(false);
   const [showSimulateModal, setShowSimulateModal] = useState(false);
   const [mockOrder, setMockOrder] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [sdkReady, setSdkReady] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const checkAttemptStatus = async () => {
+    const fetchPaywallData = async () => {
       try {
-        const res = await API.get(`/quizzes/attempt/${attemptId}`);
-        // If this succeeds, the quiz is already paid for. Redirect to Certificate.
-        if (res.data.success && res.data.paymentStatus === 'paid') {
-          navigate(`/certificate/${attemptId}`);
+        // 1. Fetch attempt info (expect 402 if unpaid, 200 if paid)
+        try {
+          const res = await API.get(`/quizzes/attempt/${attemptId}`);
+          if (res.data.success && res.data.paymentStatus === 'paid') {
+            navigate(`/certificate/${attemptId}`);
+            return;
+          }
+        } catch (err) {
+          if (err.response && err.response.status === 402) {
+            setAttempt(err.response.data.attempt);
+          } else {
+            throw err;
+          }
+        }
+
+        // 2. Fetch payment config details
+        const configRes = await API.get('/payment/config');
+        if (configRes.data.success) {
+          setConfig(configRes.data);
         }
       } catch (err) {
-        // We expect a 402 error when it is unpaid. Let's capture the basic attempt info.
-        if (err.response && err.response.status === 402) {
-          setAttempt(err.response.data.attempt);
-        } else {
-          setError('Failed to retrieve quiz attempt data. Please try again.');
-          console.error(err);
-        }
+        setError('Failed to retrieve quiz attempt data or server config.');
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
 
-    checkAttemptStatus();
+    fetchPaywallData();
   }, [attemptId, navigate]);
 
-  // Dynamically load Razorpay SDK Script
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if (window.Razorpay) {
-        resolve(true);
+  // PayPal JS SDK dynamic loader
+  useEffect(() => {
+    if (!config || config.bypass || sdkReady) return;
+
+    const loadPayPalScript = () => {
+      // If already loaded in window
+      if (window.paypal) {
+        setSdkReady(true);
         return;
       }
       const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      // Default client-id is 'sb' (PayPal Sandbox default ID) if none is configured
+      script.src = `https://www.paypal.com/sdk/js?client-id=${config.clientId || 'sb'}&currency=USD`;
       script.async = true;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
+      script.onload = () => setSdkReady(true);
+      script.onerror = () => {
+        setError('Failed to load PayPal Smart Payment Buttons SDK.');
+      };
       document.body.appendChild(script);
-    });
-  };
+    };
 
-  const handlePayment = async () => {
+    loadPayPalScript();
+  }, [config, sdkReady]);
+
+  // Render PayPal buttons once SDK is ready
+  useEffect(() => {
+    if (!sdkReady || !config || config.bypass) return;
+
+    const renderPayPalButtons = () => {
+      const container = document.getElementById('paypal-button-container');
+      if (container && window.paypal) {
+        container.innerHTML = ''; // clear previous instances
+        window.paypal.Buttons({
+          style: {
+            layout: 'vertical',
+            color: 'gold',
+            shape: 'rect',
+            label: 'pay'
+          },
+          createOrder: async () => {
+            setError('');
+            setPaying(true);
+            try {
+              const res = await API.post('/payment/create-order', { attemptId });
+              if (res.data.success) {
+                return res.data.orderID;
+              } else {
+                throw new Error('Failed to create orderID');
+              }
+            } catch (err) {
+              setError(err.response?.data?.message || 'Failed to initialize PayPal transaction.');
+              setPaying(false);
+              throw err;
+            }
+          },
+          onApprove: (data) => {
+            // Redirect to success page to capture transaction
+            navigate(`/payment-success?token=${data.orderID}&attemptId=${attemptId}`);
+          },
+          onError: (err) => {
+            setError('PayPal checkout encountered an error. Please try again.');
+            console.error('PayPal Smart Buttons error:', err);
+            setPaying(false);
+          },
+          onCancel: () => {
+            setPaying(false);
+          }
+        }).render('#paypal-button-container');
+      }
+    };
+
+    renderPayPalButtons();
+  }, [sdkReady, config, attemptId, navigate]);
+
+  // Trigger simulated payment for bypass mode
+  const handleSimulatedPaymentTrigger = async () => {
     setError('');
     setPaying(true);
-
     try {
-      // 1. Create order on backend
       const res = await API.post('/payment/create-order', { attemptId });
-      if (!res.data.success) {
-        throw new Error('Order creation failed');
-      }
-
-      const { order, bypass } = res.data;
-
-      // 2. Handle Simulation/Bypass Mode
-      if (bypass) {
-        setMockOrder(order);
+      if (res.data.success) {
+        setMockOrder({ id: res.data.orderID });
         setShowSimulateModal(true);
-        setPaying(false);
-        return;
       }
-
-      // 3. Handle Live Razorpay Mode
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        throw new Error('Razorpay SDK failed to load. Are you offline?');
-      }
-
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_mockkeyid123',
-        amount: order.amount,
-        currency: order.currency,
-        name: 'QuizCert Platform',
-        description: `Unlock credentials for: ${attempt.quizTitle}`,
-        order_id: order.id,
-        handler: async function (response) {
-          setPaying(true);
-          try {
-            // Verify payment on backend
-            const verifyRes = await API.post('/payment/verify', {
-              attemptId,
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature
-            });
-
-            if (verifyRes.data.success) {
-              navigate(`/certificate/${attemptId}?confetti=true`);
-            }
-          } catch (verErr) {
-            setError('Payment verification failed on the server.');
-            console.error(verErr);
-          } finally {
-            setPaying(false);
-          }
-        },
-        prefill: {
-          name: JSON.parse(localStorage.getItem('user'))?.name || '',
-          email: JSON.parse(localStorage.getItem('user'))?.email || ''
-        },
-        theme: {
-          color: '#4f46e5'
-        },
-        modal: {
-          ondismiss: function () {
-            setPaying(false);
-          }
-        }
-      };
-
-      const rzpInstance = new window.Razorpay(options);
-      rzpInstance.open();
     } catch (err) {
-      setError(err.message || 'Payment initiation failed.');
+      setError(err.response?.data?.message || 'Failed to create order.');
+    } finally {
       setPaying(false);
     }
   };
@@ -134,22 +144,11 @@ export default function Paywall() {
   const handleSimulatedSuccess = async () => {
     setShowSimulateModal(false);
     setPaying(true);
-
     try {
-      const verifyRes = await API.post('/payment/verify', {
-        attemptId,
-        razorpayOrderId: mockOrder.id,
-        razorpayPaymentId: `pay_mock_${Math.random().toString(36).substr(2, 9).toUpperCase()}`
-      });
-
-      if (verifyRes.data.success) {
-        // Successfully verified, route to certificate page with confetti trigger
-        navigate(`/certificate/${attemptId}?confetti=true`);
-      }
+      // Trigger simulation capture call on /payment-success direct path
+      navigate(`/payment-success?token=${mockOrder.id}&attemptId=${attemptId}`);
     } catch (err) {
-      setError('Simulated payment verification failed on server.');
-      console.error(err);
-    } finally {
+      setError('Simulated checkout navigation failed.');
       setPaying(false);
     }
   };
@@ -182,7 +181,7 @@ export default function Paywall() {
     <div className="max-w-2xl mx-auto py-8">
       {/* Title */}
       <div className="text-center mb-8">
-        <div className="inline-flex p-3 bg-indigo-600/10 border border-indigo-600/25 rounded-2xl text-indigo-400 mb-4 animate-bounce">
+        <div className="inline-flex p-3 bg-indigo-600/10 border border-indigo-600/25 rounded-2xl text-indigo-400 mb-4">
           <Lock className="w-8 h-8" />
         </div>
         <h1 className="text-3xl font-extrabold text-white mb-2">Quiz Completed!</h1>
@@ -193,7 +192,6 @@ export default function Paywall() {
 
       {/* Paywall Container */}
       <div className="glass-panel p-8 rounded-3xl shadow-xl relative overflow-hidden">
-        {/* Glow */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         {error && (
@@ -208,12 +206,13 @@ export default function Paywall() {
             Unlock Results & Certificate
           </p>
           <div className="flex items-baseline justify-center gap-1">
-            <span className="text-4xl font-extrabold text-white">₹49</span>
-            <span className="text-sm text-slate-500">one-time charge</span>
+            {/* Display in approx USD value matching small charge */}
+            <span className="text-4xl font-extrabold text-white">$0.99</span>
+            <span className="text-sm text-slate-500">(~ ₹80 INR)</span>
           </div>
         </div>
 
-        {/* Benefits Checkbox Grid */}
+        {/* Benefits Checklist */}
         <div className="space-y-4 mb-8">
           <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-slate-950/40 border border-slate-900/60">
             <CheckCircle2 className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
@@ -248,31 +247,43 @@ export default function Paywall() {
           </div>
         </div>
 
-        {/* Payment CTA Button */}
-        <button
-          onClick={handlePayment}
-          disabled={paying}
-          className="w-full flex items-center justify-center gap-2 py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl shadow-xl shadow-indigo-650/20 hover:scale-[1.01] transition-all cursor-pointer"
-        >
-          {paying ? (
-            <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-          ) : (
-            <>
-              <CreditCard className="w-5 h-5" />
-              Pay ₹49 & Unlock Now
-            </>
-          )}
-        </button>
+        {/* Payment CTA Section */}
+        {config?.bypass ? (
+          <button
+            onClick={handleSimulatedPaymentTrigger}
+            disabled={paying}
+            className="w-full flex items-center justify-center gap-2 py-4 px-6 bg-gradient-to-r from-amber-600 to-indigo-650 hover:from-amber-500 hover:to-indigo-550 text-white font-bold rounded-2xl shadow-xl transition-all cursor-pointer"
+          >
+            {paying ? (
+              <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            ) : (
+              <>
+                <CreditCard className="w-5 h-5" />
+                Pay $0.99 (Simulated Sandbox)
+              </>
+            )}
+          </button>
+        ) : (
+          <div className="space-y-4">
+            {!sdkReady && (
+              <div className="flex items-center justify-center gap-2 text-slate-400 text-sm py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                Loading PayPal Payment Buttons...
+              </div>
+            )}
+            <div id="paypal-button-container" className="relative z-10"></div>
+          </div>
+        )}
 
-        <p className="text-[10px] text-slate-500 text-center mt-4 flex items-center justify-center gap-1.5">
+        <p className="text-[10px] text-slate-500 text-center mt-6 flex items-center justify-center gap-1.5">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-          Transactions secured by Razorpay Checkout. Fully refundable.
+          Transactions secured by PayPal Sandbox. Fully encrypted.
         </p>
       </div>
 
       {/* Sandbox Simulation Modal */}
       {showSimulateModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="glass-panel p-8 rounded-3xl max-w-md w-full shadow-2xl border border-indigo-500/20 relative">
             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
             
@@ -282,7 +293,7 @@ export default function Paywall() {
             </div>
 
             <p className="text-slate-400 text-sm leading-relaxed mb-6">
-              QuizCert is executing in development mode (`BYPASS_PAYMENT=true`). A live Razorpay checkout is not required. You can complete the demo flow by triggering a simulated payment.
+              QuizCert is executing in developer sandbox mode (`BYPASS_PAYMENT=true` or placeholder client credentials). Click "Simulate Successful Checkout" to proceed.
             </p>
 
             <div className="space-y-3">
@@ -290,7 +301,7 @@ export default function Paywall() {
                 onClick={handleSimulatedSuccess}
                 className="w-full py-3.5 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-all cursor-pointer"
               >
-                Simulate Successful Payment
+                Simulate Successful Checkout
               </button>
               
               <button
