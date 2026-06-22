@@ -1,0 +1,154 @@
+{
+  "users": [
+    {
+      "name": "Platform Admin",
+      "email": "admin@quizcert.com",
+      "password": "$2a$10$YPLU3gjE/fHMf82E.QNm5u8wXDfH1j5jLwfCHtr/tdwXWvY9AfaB2",
+      "role": "admin",
+      "_id": "08a9a25768f7544fdcc4cc94",
+      "createdAt": "2026-06-22T11:22:25.538Z"
+    }
+  ],
+  "quizzes": [
+    {
+      "title": "Full Stack Web Development Essentials",
+      "description": "Test your knowledge on modern frontend and backend architectures, HTTP protocols, databases, and general web design principles.",
+      "category": "Technology",
+      "timer": 5,
+      "questions": [
+        {
+          "questionText": "Which HTTP method is typically used to create a new resource on the server?",
+          "options": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+          ],
+          "correctAnswer": "POST"
+        },
+        {
+          "questionText": "What does the CORS acronym stand for in web development?",
+          "options": [
+            "Cross-Origin Resource Sharing",
+            "Consumer-Oriented Request Security",
+            "Client-Output Routing Server",
+            "Common-Object Relational Schema"
+          ],
+          "correctAnswer": "Cross-Origin Resource Sharing"
+        },
+        {
+          "questionText": "Which of the following database types uses structured tables with relations?",
+          "options": [
+            "MongoDB",
+            "Redis",
+            "PostgreSQL",
+            "Cassandra"
+          ],
+          "correctAnswer": "PostgreSQL"
+        },
+        {
+          "questionText": "In React, what hook is primarily used to perform side effects like data fetching?",
+          "options": [
+            "useState",
+            "useContext",
+            "useEffect",
+            "useMemo"
+          ],
+          "correctAnswer": "useEffect"
+        }
+      ],
+      "_id": "61da95b9551b1596720cd292"
+    },
+    {
+      "title": "JavaScript & Modern ES6+ Concepts",
+      "description": "Advance your understanding of closures, asynchronous events, event loops, promises, and scoping mechanics.",
+      "category": "Technology",
+      "timer": 4,
+      "questions": [
+        {
+          "questionText": "What is the output of \"typeof null\" in JavaScript?",
+          "options": [
+            "\"null\"",
+            "\"undefined\"",
+            "\"object\"",
+            "\"boolean\""
+          ],
+          "correctAnswer": "\"object\""
+        },
+        {
+          "questionText": "Which keyword defines a block-scoped variable that can be re-assigned?",
+          "options": [
+            "var",
+            "let",
+            "const",
+            "define"
+          ],
+          "correctAnswer": "let"
+        },
+        {
+          "questionText": "What is the correct way to handle rejection in a promise chain?",
+          "options": [
+            ".then()",
+            ".finally()",
+            ".catch()",
+            ".resolve()"
+          ],
+          "correctAnswer": ".catch()"
+        },
+        {
+          "questionText": "What value does a function return by default if no return statement is specified?",
+          "options": [
+            "null",
+            "undefined",
+            "false",
+            "0"
+          ],
+          "correctAnswer": "undefined"
+        }
+      ],
+      "_id": "89b9faf54327c1f8ac39f0c7"
+    },
+    {
+      "title": "Basic Science & Physics Trivia",
+      "description": "Test your knowledge about elementary physics, solar systems, molecules, and biological processes.",
+      "category": "Science",
+      "timer": 5,
+      "questions": [
+        {
+          "questionText": "Which planet in our solar system is known for its prominent rings?",
+          "options": [
+            "Mars",
+            "Saturn",
+            "Jupiter",
+            "Neptune"
+          ],
+          "correctAnswer": "Saturn"
+        },
+        {
+          "questionText": "What is the speed of light in a vacuum (approximate)?",
+          "options": [
+            "300,000 km/s",
+            "150,000 km/s",
+            "3,000 km/s",
+            "3,000,000 km/s"
+          ],
+          "correctAnswer": "300,000 km/s"
+        },
+        {
+          "questionText": "What cell organelle is commonly referred to as the powerhouse of the cell?",
+          "options": [
+            "Nucleus",
+            "Ribosome",
+            "Mitochondria",
+            "Golgi Apparatus"
+          ],
+          "correctAnswer": "Mitochondria"
+        }
+      ],
+      "_id": "469ab045a7b3a03aac0ce76f"
+    }
+  ],
+  "quizattempts": [],
+  "payments": [],
+  "certificates": []
+}
