@@ -10,8 +10,6 @@ export default function Paywall() {
   const [attempt, setAttempt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
-  const [showSimulateModal, setShowSimulateModal] = useState(false);
-  const [mockOrder, setMockOrder] = useState(null);
   const [config, setConfig] = useState(null);
   const [sdkReady, setSdkReady] = useState(false);
   const [error, setError] = useState('');
@@ -61,7 +59,6 @@ export default function Paywall() {
         return;
       }
       const script = document.createElement('script');
-      // Default client-id is 'sb' (PayPal Sandbox default ID) if none is configured
       script.src = `https://www.paypal.com/sdk/js?client-id=${config.clientId || 'sb'}&currency=USD`;
       script.async = true;
       script.onload = () => setSdkReady(true);
@@ -106,7 +103,6 @@ export default function Paywall() {
             }
           },
           onApprove: (data) => {
-            // Redirect to success page to capture transaction
             navigate(`/payment-success?token=${data.orderID}&attemptId=${attemptId}`);
           },
           onError: (err) => {
@@ -127,29 +123,25 @@ export default function Paywall() {
   // Trigger simulated payment for bypass mode
   const handleSimulatedPaymentTrigger = async () => {
     setError('');
+    
+    // Prompt direct payment confirmation
+    if (!window.confirm('Confirm Payment of $0.99 (~ ₹80 INR) to unlock results & certificate?')) {
+      return;
+    }
+
     setPaying(true);
     try {
       const res = await API.post('/payment/create-order', { attemptId });
       if (res.data.success) {
-        setMockOrder({ id: res.data.orderID });
-        setShowSimulateModal(true);
+        const token = res.data.orderID || `order_paypal_mock_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+        // Directly navigate to success page to capture transaction
+        navigate(`/payment-success?token=${token}&attemptId=${attemptId}`);
+      } else {
+        setError('Failed to create simulated order.');
+        setPaying(false);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create order.');
-    } finally {
-      setPaying(false);
-    }
-  };
-
-  const handleSimulatedSuccess = async () => {
-    setShowSimulateModal(false);
-    setPaying(true);
-    try {
-      // Trigger simulation capture call on /payment-success direct path
-      const token = mockOrder?.id || `order_paypal_mock_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-      navigate(`/payment-success?token=${token}&attemptId=${attemptId}`);
-    } catch (err) {
-      setError('Simulated checkout navigation failed.');
+      setError(err.response?.data?.message || 'Failed to create simulated order.');
       setPaying(false);
     }
   };
@@ -207,7 +199,6 @@ export default function Paywall() {
             Unlock Results & Certificate
           </p>
           <div className="flex items-baseline justify-center gap-1">
-            {/* Display in approx USD value matching small charge */}
             <span className="text-4xl font-extrabold text-white">$0.99</span>
             <span className="text-sm text-slate-500">(~ ₹80 INR)</span>
           </div>
@@ -253,14 +244,14 @@ export default function Paywall() {
           <button
             onClick={handleSimulatedPaymentTrigger}
             disabled={paying}
-            className="w-full flex items-center justify-center gap-2 py-4 px-6 bg-gradient-to-r from-amber-600 to-indigo-650 hover:from-amber-500 hover:to-indigo-550 text-white font-bold rounded-2xl shadow-xl transition-all cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 py-4 px-6 bg-indigo-650 hover:bg-indigo-600 text-white font-bold rounded-2xl shadow-xl transition-all cursor-pointer"
           >
             {paying ? (
               <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
             ) : (
               <>
                 <CreditCard className="w-5 h-5" />
-                Pay $0.99 (Simulated Sandbox)
+                Pay $0.99 (Confirm Payment)
               </>
             )}
           </button>
@@ -276,48 +267,11 @@ export default function Paywall() {
           </div>
         )}
 
-        <p className="text-[10px] text-slate-500 text-center mt-6 flex items-center justify-center gap-1.5">
+        <p className="text-[10px] text-slate-505 text-center mt-6 flex items-center justify-center gap-1.5">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
           Transactions secured by PayPal Sandbox. Fully encrypted.
         </p>
       </div>
-
-      {/* Sandbox Simulation Modal */}
-      {showSimulateModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="glass-panel p-8 rounded-3xl max-w-md w-full shadow-2xl border border-indigo-500/20 relative">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
-            
-            <div className="flex items-center gap-3 mb-4 text-amber-400">
-              <Sparkles className="w-6 h-6 animate-pulse" />
-              <h3 className="text-xl font-bold">Simulated Sandbox Mode</h3>
-            </div>
-
-            <p className="text-slate-400 text-sm leading-relaxed mb-6">
-              QuizCert is executing in developer sandbox mode (`BYPASS_PAYMENT=true` or placeholder client credentials). Click "Simulate Successful Checkout" to proceed.
-            </p>
-
-            <div className="space-y-3">
-              <button
-                onClick={handleSimulatedSuccess}
-                className="w-full py-3.5 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-all cursor-pointer"
-              >
-                Simulate Successful Checkout
-              </button>
-              
-              <button
-                onClick={() => {
-                  setShowSimulateModal(false);
-                  setPaying(false);
-                }}
-                className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
